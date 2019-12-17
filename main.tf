@@ -4,14 +4,14 @@ data "aws_ami" "base_ami" {
   owners      = ["amazon", "self"]
 }
 
-resource "aws_instance" "vpn" {
-  depends_on             = [aws_security_group.vpn]
+resource "aws_instance" "proxy" {
+  depends_on             = [aws_security_group.proxy-ssh, aws_security_group.proxy-squid]
   ami                    = data.aws_ami.base_ami.id
   instance_type          = var.instance_type
-  user_data_base64       = data.template_cloudinit_config.vpn.rendered
+  user_data_base64       = data.template_cloudinit_config.proxy.rendered
   monitoring             = false
-  subnet_id              = aws_subnet.vpn.id
-  vpc_security_group_ids = [aws_security_group.vpn.id]
+  subnet_id              = aws_subnet.proxy.id
+  vpc_security_group_ids = [aws_security_group.proxy-ssh.id, aws_security_group.proxy-squid.id]
 
   tags = merge(map("Name", var.tag_name), var.tags_extra)
 
@@ -24,7 +24,7 @@ resource "aws_instance" "vpn" {
   }
 }
 
-resource "aws_subnet" "vpn" {
+resource "aws_subnet" "proxy" {
   vpc_id                  = var.vpc_id
   cidr_block              = cidrsubnet(var.cidr_block, 8, var.cidr_block_offset, )
   map_public_ip_on_launch = true
@@ -32,19 +32,19 @@ resource "aws_subnet" "vpn" {
   tags = merge(map("Name", var.tag_name), var.tags_extra)
 }
 
-resource "aws_eip" "vpn" {
-  depends_on = [aws_instance.vpn]
-  instance   = aws_instance.vpn.id
+resource "aws_eip" "proxy" {
+  depends_on = [aws_instance.proxy]
+  instance   = aws_instance.proxy.id
   vpc        = true
   tags       = merge(map("Name", var.tag_name), var.tags_extra)
 }
 
-resource "aws_security_group" "vpn" {
-  name   = "vpn"
+resource "aws_security_group" "proxy-ssh" {
+  name   = "proxy-ssh"
   vpc_id = var.vpc_id
-
+  
   tags = merge(map("Name", var.tag_name), var.tags_extra)
-
+  
   ingress {
     from_port   = 22
     to_port     = 22
@@ -52,15 +52,7 @@ resource "aws_security_group" "vpn" {
     cidr_blocks = ["0.0.0.0/0"]
     self        = true
   }
-
-  ingress {
-    from_port   = 1194
-    to_port     = 1194
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-    self        = true
-  }
-
+  
   egress {
     from_port   = 0
     to_port     = 0
@@ -69,33 +61,56 @@ resource "aws_security_group" "vpn" {
   }
 }
 
-data "template_file" "vpn" {
-  template = file("${path.module}/proxy.py")
-
-  vars = {
-    hostname              = var.hostname,
-    slack_hook            = var.slack-hook,
-    swapsize              = 1,
-    authorized_keys       = join("\n", var.ssh_authorized_keys)
+resource "aws_security_group" "proxy-squid" {
+  name   = "proxy-squid"
+  vpc_id = var.vpc_id
+  
+  tags = merge(map("Name", var.tag_name), var.tags_extra)
+  
+  ingress {
+    from_port   = 3128
+    to_port     = 3128
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    self        = true
+  }
+  
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-data "template_cloudinit_config" "vpn" {
+output "squid_securitygroup" {
+  value = aws_security_group.proxy-squid.id
+}
+
+data "template_file" "proxy" {
+  template = file("${path.module}/proxy.py")
+
+  vars = {
+    hostname        = var.hostname,
+    slack_hook      = var.slack-hook,
+    swapsize        = 1,
+    authorized_keys = var.ssh_authorized_keys
+    proxy_username  = var.proxy_username
+    proxy_password  = var.proxy_password
+  }
+}
+
+data "template_cloudinit_config" "proxy" {
   gzip          = "true"
   base64_encode = "true"
 
   part {
-    content = file("${path.module}/common.cloud-config")
+    content = file("${path.module}/cloud-config.yaml")
   }
 
   part {
     filename = "dockerd.py"
     content  = file("${path.module}/dockerd.py")
-  }
-
-  part {
-    filename = "squid.py"
-    content  = file("${path.module}/squid.py")
   }
 
   part {
@@ -115,7 +130,7 @@ data "template_cloudinit_config" "vpn" {
 
   part {
     filename     = "proxy.py"
-    content      = data.template_file.vpn.rendered
+    content      = data.template_file.proxy.rendered
     content_type = "text/x-shellscript"
   }
 }

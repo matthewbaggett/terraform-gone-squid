@@ -1,3 +1,3 @@
-output "vpn_ip" {
-  value = aws_eip.vpn.public_ip
+output "proxy_ip" {
+  value = aws_eip.proxy.public_ip
 }

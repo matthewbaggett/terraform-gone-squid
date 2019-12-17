@@ -1,0 +1,77 @@
+#cloud-config
+bootcmd:
+  - [ "cloud-init-per", "once", "amazon-linux-extras-docker", "amazon-linux-extras", "install", "docker" ]
+  - [ "cloud-init-per", "once", "amazon-linux-extras-epel", "amazon-linux-extras", "install", "epel" ]
+  - [ sh, -c, "pip install docker boto3 requests" ]
+#repo_update: true
+#repo_upgrade: all
+packages:
+  - docker
+  - python2-pip
+  - httpd-tools
+final_message: "The system is finally up, after $UPTIME seconds"
+output:
+  all: "| tee -a /var/log/cloud-init-output.log"
+write_files:
+  - path: /etc/squid/squid.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      auth_param basic program /usr/lib/squid3/basic_ncsa_auth /etc/squid/passwords
+      auth_param basic realm proxy
+      acl SSL_ports port 443
+      acl Safe_ports port 80             # http
+      acl Safe_ports port 21             # ftp
+      acl Safe_ports port 443            # https
+      acl Safe_ports port 70             # gopher
+      acl Safe_ports port 210            # wais
+      acl Safe_ports port 1025-65535     # unregistered ports
+      acl Safe_ports port 280            # http-mgmt
+      acl Safe_ports port 488            # gss-http
+      acl Safe_ports port 591            # filemaker
+      acl Safe_ports port 777            # multiling http
+      acl CONNECT method CONNECT
+      acl authenticated proxy_auth REQUIRED
+      http_access deny !Safe_ports
+      http_access deny CONNECT !SSL_ports
+      http_access allow localhost manager
+      http_access deny manager
+      http_access allow authenticated
+      http_access allow localhost
+      http_access deny all
+      http_port 3128
+      coredump_dir /var/spool/squid
+      refresh_pattern ^ftp:		1440	20%	10080
+      refresh_pattern ^gopher:	1440	0%	1440
+      refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
+      refresh_pattern (Release|Packages(.gz)*)$      0       20%     2880
+      refresh_pattern .		0	20%	4320
+  - path: /etc/cron.hourly/docker-prune.sh
+    content: |
+      #!/bin/sh
+      docker image prune -f > /dev/null
+      docker container prune -f > /dev/null
+    owner: root:root
+    permissions: "0700"
+  - path: /etc/cron.daily/docker-prune.sh
+    content: |
+      #!/bin/sh
+      docker image prune --all -f > /dev/null
+      docker network prune -f > /dev/null
+      docker volume prune -f > /dev/null
+    owner: root:root
+    permissions: "0700"
+  - path: /etc/cron.daily/system-update.sh
+    content: |
+      #!/bin/sh
+      yum update --assumeyes
+      rm -rf /var/cache/yum
+    owner: root:root
+    permissions: "0700"
+groups:
+  - docker
+users:
+  - name: admin
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh-authorized-keys:
+    - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDmETGaY8S7I6I+6Rm0rVtWwlpmOQ+ZnywQpAKyj5gnK2a/9bwSJzMt/DI+/WBodSHLfXef8P0CHfPpMKqTAN1c4kDNqNgsvAMC6lSXofqnSu4mEhEWRSsJwA8NXanQ9ph970aaQKdj+GlS9lsoMel/cOdjyPrP3RtFTd0BuAlCah5KB8Job699riVnvh6y+SyqwWtNRAesAfQqrBzLs3LTWtltqG4UZ0mkuLpVu7RbJOh1hAPqhd1NKHMjPpBXUjABMVya0qFFbq2j9W016P0dMkZO/jZqLdd6MeF25q9lNeJXU6/w5d3qSljpq9u+AbhIoUgTZerLcN2hqVWZlpDn geusebio@roosevelt
