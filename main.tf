@@ -42,9 +42,9 @@ resource "aws_eip" "proxy" {
 resource "aws_security_group" "proxy-ssh" {
   name   = "proxy-ssh"
   vpc_id = var.vpc_id
-  
+
   tags = merge(map("Name", var.tag_name), var.tags_extra)
-  
+
   ingress {
     from_port   = 22
     to_port     = 22
@@ -52,7 +52,7 @@ resource "aws_security_group" "proxy-ssh" {
     cidr_blocks = ["0.0.0.0/0"]
     self        = true
   }
-  
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -64,9 +64,9 @@ resource "aws_security_group" "proxy-ssh" {
 resource "aws_security_group" "proxy-squid" {
   name   = "proxy-squid"
   vpc_id = var.vpc_id
-  
+
   tags = merge(map("Name", var.tag_name), var.tags_extra)
-  
+
   ingress {
     from_port   = 3128
     to_port     = 3128
@@ -74,7 +74,7 @@ resource "aws_security_group" "proxy-squid" {
     cidr_blocks = ["0.0.0.0/0"]
     self        = true
   }
-  
+
   egress {
     from_port   = 0
     to_port     = 0

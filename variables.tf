@@ -54,11 +54,11 @@ variable "tags_extra" {
 
 variable "proxy_username" {
   description = "Username to allow through squid"
-  type = string
-  default = "guest"
+  type        = string
+  default     = "guest"
 }
 
 variable "proxy_password" {
   default = "guest"
-  type = string
+  type    = string
 }
