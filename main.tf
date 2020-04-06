@@ -37,6 +37,9 @@ resource "aws_eip" "proxy" {
   instance   = aws_instance.proxy.id
   vpc        = true
   tags       = merge(map("Name", var.tag_name), var.tags_extra)
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_security_group" "proxy-ssh" {
