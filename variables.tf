@@ -62,3 +62,8 @@ variable "proxy_password" {
   default = "guest"
   type    = string
 }
+
+variable "extra_security_groups" {
+  type    = list(string)
+  default = []
+}

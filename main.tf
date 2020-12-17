@@ -5,13 +5,19 @@ data "aws_ami" "base_ami" {
 }
 
 resource "aws_instance" "proxy" {
-  depends_on             = [aws_security_group.proxy-ssh, aws_security_group.proxy-squid]
-  ami                    = data.aws_ami.base_ami.id
-  instance_type          = var.instance_type
-  user_data_base64       = data.template_cloudinit_config.proxy.rendered
-  monitoring             = false
-  subnet_id              = aws_subnet.proxy.id
-  vpc_security_group_ids = [aws_security_group.proxy-ssh.id, aws_security_group.proxy-squid.id]
+  depends_on       = [aws_security_group.proxy-ssh, aws_security_group.proxy-squid]
+  ami              = data.aws_ami.base_ami.id
+  instance_type    = var.instance_type
+  user_data_base64 = data.template_cloudinit_config.proxy.rendered
+  monitoring       = false
+  subnet_id        = aws_subnet.proxy.id
+  vpc_security_group_ids = concat(
+    [
+      aws_security_group.proxy-ssh.id,
+      aws_security_group.proxy-squid.id
+    ],
+    var.extra_security_groups
+  )
 
   tags = merge(map("Name", var.tag_name), var.tags_extra)
 
